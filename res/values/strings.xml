@@ -9,4 +9,7 @@
     <string name="local_service_disconnected">Local service disconnected</string>
     <string name="xmpp_connecting">Connecting to XMPP server</string>
     <string name="label_submit_button">Send</string>
+    <string name="xmpp_bot">appkaizen.appspotchat.com</string>
+    <string name="xmpp_bot_label">XMPP Bot</string>
+    <string name="xmpp_bot_summary">The URL of your XMPP Bot</string>
 </resources>

@@ -16,11 +16,16 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.MenuInflater;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.Toast;
@@ -32,6 +37,7 @@ public class MainActivity extends Activity {
     private AppKaizenService mBoundService;
     private Boolean mIsBound = false;
     private XMPPReceiver xmppReceiver;
+    private String xmpp_bot;
     public static final String TAG = "APPKAIZEN_APP";
 
     // Unique Identification Number for the Notification.
@@ -46,11 +52,30 @@ public class MainActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+        PreferenceManager.setDefaultValues(this, R.xml.preferences, false);
+        SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
+        xmpp_bot = sharedPref.getString("xmpp_bot", "");
         doBindService();
         mNM = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
         // Display a notification about us starting.  We put an icon in the status bar.
         showNotification();
+    }
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.options, menu);
+        return true;
+    }
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+        case R.id.options:
+            startActivity(new Intent(this, SettingsActivity.class));
+            return true;
+        default:
+            return super.onOptionsItemSelected(item);
+        }
     }
     @Override
     public void onResume() {
@@ -141,7 +166,7 @@ public class MainActivity extends Activity {
         // we know will be running in our own process (and thus won't be
         // supporting component replacement by other applications).
         Intent intent = new Intent(this, AppKaizenService.class);
-        intent.putExtra(AppKaizenService.XMPP_BOT, "appkaizen.appspotchat.com");
+        intent.putExtra(AppKaizenService.XMPP_BOT, xmpp_bot);
         //startService(intent);
         bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
         //bindService(intent, mConnection, 0);

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+  <EditTextPreference
+    android:key="xmpp_bot"
+    android:title="@string/xmpp_bot_label"
+    android:summary="@string/xmpp_bot_summary"
+    android:defaultValue="@string/xmpp_bot" />
+</PreferenceScreen>

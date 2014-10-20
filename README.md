@@ -13,6 +13,6 @@ There are only two activities on KAC: the contact list and the conversation. As 
 
 Only portrait mode is currently supported to avoid service restart when the device orientation changes.
 
-#More insights at clapas.github.io.
+More insights at clapas.github.io.
 
-#The login expects an authorization token instead of a raw password.
+The login expects an authorization token instead of a raw password.

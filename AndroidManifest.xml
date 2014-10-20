@@ -28,6 +28,7 @@
             <meta-data android:name="android.support.PARENT_ACTIVITY"
                        android:value="com.pyco.appkaizen.MainActivity" />
         </activity>
+        <activity android:name=".SettingsActivity" />
         <service android:name=".AppKaizenService" />
     </application>
 </manifest>
