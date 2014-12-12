@@ -40,6 +40,7 @@
       android:layout_height="wrap_content"
       android:layout_alignParentTop="true"
       android:orientation="vertical">
+      <requestFocus/>
     </LinearLayout>
   </ScrollView>
 

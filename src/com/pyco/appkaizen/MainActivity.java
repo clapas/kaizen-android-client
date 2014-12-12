@@ -1,20 +1,21 @@
 package com.pyco.appkaizen;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
 import android.app.Activity;
-import android.app.Notification;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.ColorStateList;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -33,16 +34,15 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
 
-    private NotificationManager mNM;
     private AppKaizenService mBoundService;
     private Boolean mIsBound = false;
     private XMPPReceiver xmppReceiver;
     private String xmpp_bot;
+    private NotificationManager mNM;
+    private ColorStateList defaultTextColors;
+    private Set<String> contacts = new HashSet<String>(64);
+    private String detail;
     public static final String TAG = "APPKAIZEN_APP";
-
-    // Unique Identification Number for the Notification.
-    // We use it on Notification start, and to cancel it.
-    private int NOTIFICATION = R.string.local_service_started;
 
     @Override
     public void onStop() {
@@ -56,10 +56,6 @@ public class MainActivity extends Activity {
         SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
         xmpp_bot = sharedPref.getString("xmpp_bot", "");
         doBindService();
-        mNM = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-
-        // Display a notification about us starting.  We put an icon in the status bar.
-        showNotification();
     }
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -73,21 +69,30 @@ public class MainActivity extends Activity {
         case R.id.options:
             startActivity(new Intent(this, SettingsActivity.class));
             return true;
+        case R.id.kill_service:
+            mBoundService.stop();
+            doUnbindService();
+            finish();
         default:
             return super.onOptionsItemSelected(item);
+        }
+    }
+    public void refreshUI() {
+        if (mBoundService != null) {
+            if (detail != null) {
+                mBoundService.getSeen().put(detail, true);
+                detail = null;
+            }
+            Set<String> subscriptions = mBoundService.getSubscriptions();
+            for (String s: subscriptions) addContact(s);
+            updateContacts();
         }
     }
     @Override
     public void onResume() {
         super.onResume();
         Log.i(TAG, "MainActivity resumed");
-        if (mBoundService != null) {
-            Set<String> subscriptions = mBoundService.getSubscriptions();
-            for (String s: subscriptions) {
-                addContact(s);
-                subscriptions.remove(s);
-            }
-        }
+        refreshUI();
         if (xmppReceiver == null) xmppReceiver = new XMPPReceiver();
         IntentFilter intentFilter = new IntentFilter(AppKaizenService.CONNECTED);
         registerReceiver(xmppReceiver, intentFilter);
@@ -98,41 +103,33 @@ public class MainActivity extends Activity {
         intentFilter = new IntentFilter(AppKaizenService.ERROR);
         registerReceiver(xmppReceiver, intentFilter);
         intentFilter = new IntentFilter(AppKaizenService.MESSAGE);
+        intentFilter.setPriority(1);
         registerReceiver(xmppReceiver, intentFilter);
         intentFilter = new IntentFilter(AppKaizenService.SUBSCRIBE);
         registerReceiver(xmppReceiver, intentFilter);
         intentFilter = new IntentFilter(AppKaizenService.DISCONNECTED);
         registerReceiver(xmppReceiver, intentFilter);
+        mNM = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        mNM.cancel(AppKaizenService.NOTIFICATION);
+    }
+    private void updateContacts() {
+        LinearLayout ll = (LinearLayout) findViewById(R.id.listConvs);
+        Map<String, Queue<Map<String, String>>> messages = mBoundService.getMessages();
+        Map<String, Boolean> seen = mBoundService.getSeen();
+        for (int i = 0; i < ll.getChildCount(); i++) {
+            Button btn = (Button) ll.getChildAt(i);
+            String jid = (String) btn.getText();
+            int ss = messages.get(jid).size();
+            if (!seen.get(jid)) btn.setTextColor(android.graphics.Color.parseColor("#00aa00"));
+            else btn.setTextColor(defaultTextColors);
+        }
     }
     @Override
     public void onPause() {
         super.onPause();
         Log.i(TAG, "Activity Paused");
         if (xmppReceiver != null) unregisterReceiver(xmppReceiver);
-        mBoundService.getSubscriptions().clear();
-    }
-    /**
-     * Show a notification while this service is running.
-     */
-    private void showNotification() {
-        // In this sample, we'll use the same text for the ticker and the expanded notification
-        CharSequence text = getText(R.string.local_service_started);
-
-        // Set the icon, scrolling text and timestamp
-        Notification notification = new Notification(R.drawable.ic_launcher, text,
-                System.currentTimeMillis());
-
-        // The PendingIntent to launch our activity if the user selects this notification
-        Intent intent = new Intent(this, MainActivity.class);
-        intent.setAction(Intent.ACTION_MAIN);
-        intent.addCategory(Intent.CATEGORY_LAUNCHER);
-        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, intent, 0);
-
-        // Set the info for the views that show in the notification panel.
-        notification.setLatestEventInfo(this, getText(R.string.local_service_label), text, contentIntent);
-
-        // Send the notification.
-        mNM.notify(NOTIFICATION, notification);
+        //mBoundService.getSubscriptions().clear();
     }
     private ServiceConnection mConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder service) {
@@ -147,7 +144,8 @@ public class MainActivity extends Activity {
             Toast.makeText(MainActivity.this, R.string.local_service_connected,
                     Toast.LENGTH_SHORT).show();
 
-            mBoundService.connect("talk.google.com", 5222, "gmail.com");
+            mBoundService.login("talk.google.com", 5222, "gmail.com");
+            refreshUI();
         }
     
         public void onServiceDisconnected(ComponentName className) {
@@ -167,9 +165,9 @@ public class MainActivity extends Activity {
         // supporting component replacement by other applications).
         Intent intent = new Intent(this, AppKaizenService.class);
         intent.putExtra(AppKaizenService.XMPP_BOT, xmpp_bot);
-        //startService(intent);
-        bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
-        //bindService(intent, mConnection, 0);
+        startService(intent);
+        bindService(intent, mConnection, 0);
+        //bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
         mIsBound = true;
     }
     
@@ -182,10 +180,9 @@ public class MainActivity extends Activity {
     }
     @Override
     protected void onDestroy() {
+        Log.i(TAG, "activity destroy");
         super.onDestroy();
         doUnbindService();
-        // Cancel the persistent notification.
-        mNM.cancel(NOTIFICATION);
     }    
     OnClickListener contactBtnClick = new OnClickListener() {
         public void onClick(View v) {
@@ -193,7 +190,8 @@ public class MainActivity extends Activity {
             Button b = (Button) v;
             String from = b.getText().toString();
             List<MessageData> aa = new ArrayList();
-            for (Map<String, String> m: mBoundService.getMessages()) {
+            detail = from;
+            for (Map<String, String> m: mBoundService.getMessages().get(from)) { // null pointer exception here! why?
                 if (m.get(AppKaizenService.FROM).equals(from)) aa.add(new MessageData(true, m.get(AppKaizenService.BODY)));
                 else if (m.get(AppKaizenService.TO).equals(from)) aa.add(new MessageData(false, m.get(AppKaizenService.BODY)));
             }
@@ -203,7 +201,9 @@ public class MainActivity extends Activity {
         }
     };
     private void addContact(String jid) {
+        if (!contacts.add(jid)) return;
         Button btn = new Button(this);
+        if (defaultTextColors == null) defaultTextColors =  btn.getTextColors();
         btn.setText(jid);
         btn.setOnClickListener(contactBtnClick);
         LinearLayout ll = (LinearLayout) findViewById(R.id.listConvs);
@@ -214,7 +214,7 @@ public class MainActivity extends Activity {
         public void onReceive(Context context, Intent intent) {
             if (intent.getAction().equals(AppKaizenService.CONNECTED)) {
                 Toast.makeText(MainActivity.this, "Connected to server", Toast.LENGTH_SHORT).show();
-                mBoundService.login();
+                //if (mBoundService != null) mBoundService.login(); // in case the service autoconnected before the activity got bound to it
             } else if (intent.getAction().equals(AppKaizenService.LOGGED_IN)) {
                 Toast.makeText(MainActivity.this, "Logged in!", Toast.LENGTH_SHORT).show();
             } else if (intent.getAction().equals(AppKaizenService.LOGIN_FAILED)) {
@@ -228,7 +228,12 @@ public class MainActivity extends Activity {
                 addContact(bun.getString(AppKaizenService.FROM));
             } else if (intent.getAction().equals(AppKaizenService.DISCONNECTED)) {
                 Toast.makeText(MainActivity.this, "Disconnected from the server", Toast.LENGTH_SHORT).show();
-            } 
+            } else if (intent.getAction().equals(AppKaizenService.MESSAGE)) {
+                Bundle bun = intent.getExtras();
+                Log.i(TAG, "Message packet from " + bun.getString(AppKaizenService.FROM));
+                updateContacts();
+                abortBroadcast();
+            }
         }
     }
 }

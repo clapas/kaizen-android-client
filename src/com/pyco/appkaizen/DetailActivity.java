@@ -65,7 +65,13 @@ public class DetailActivity extends Activity {
         super.onResume();
         if (xmppReceiver == null) xmppReceiver = new XMPPReceiver();
         IntentFilter intentFilter = new IntentFilter(AppKaizenService.MESSAGE);
+        intentFilter.setPriority(1);
         registerReceiver(xmppReceiver, intentFilter);
+    }
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (xmppReceiver != null) unregisterReceiver(xmppReceiver);
     }
     private void appendMessage(String body) {
         TextView tv = new TextView(this);
@@ -79,8 +85,10 @@ public class DetailActivity extends Activity {
         public void onReceive(Context context, Intent intent) {
             if (intent.getAction().equals(AppKaizenService.MESSAGE)) {
                 Bundle bun = intent.getExtras();
-                if (bun.getString(AppKaizenService.FROM).equals(current_jid))
+                if (bun.getString(AppKaizenService.FROM).equals(current_jid)) {
+                    abortBroadcast();
                     appendMessage(bun.getString(AppKaizenService.BODY));
+                }
             }
         }
     }
